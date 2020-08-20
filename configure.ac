@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.64)
-AC_INIT([libplist], [2.2.0], [https://github.com/libimobiledevice/libplist/issues],, [https://libimobiledevice.org])
+AC_INIT([libplist], [2.2.1], [https://github.com/libimobiledevice/libplist/issues],, [https://libimobiledevice.org])
 AM_INIT_AUTOMAKE([dist-bzip2 no-dist-gzip check-news])
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES])
 AC_CONFIG_SRCDIR([src/])
@@ -135,7 +135,7 @@ fi
 if [test "x$CYTHON" != "xfalse"]; then
             PKG_PROG_PKG_CONFIG
             AC_MSG_CHECKING([for libplist Cython bindings])
-            CYTHON_PLIST_INCLUDE_DIR=$($PKG_CONFIG --variable=includedir libplist)/plist/cython
+            CYTHON_PLIST_INCLUDE_DIR=$($PKG_CONFIG --variable=includedir libplist-2.0)/plist/cython
             if [test ! -d "$CYTHON_PLIST_INCLUDE_DIR"]; then
                 CYTHON_PLIST_INCLUDE_DIR=.
                 cython_python_bindings=yes
@@ -159,7 +159,7 @@ fi
 
 AC_ARG_ENABLE(debug,
 AS_HELP_STRING([--enable-debug],
-               [enable debugging, default: no]),
+               [build debug message output code (default is no)]),
 [case "${enableval}" in
              yes) debug=yes ;;
              no)  debug=no ;;
@@ -168,7 +168,7 @@ esac],
 [debug=no])
 
 if (test "x$debug" = "xyes"); then
-       AC_DEFINE(DEBUG, 1, [Define if debug code should be enabled.])
+       AC_DEFINE(DEBUG, 1, [Define if debug message output code should be built.])
        GLOBAL_CFLAGS+=" -g"
 fi
 
