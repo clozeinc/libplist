@@ -143,28 +143,28 @@ union plist_uint_ptr
 #ifdef __BIG_ENDIAN__
 #define beNtoh(x,n) (x >> ((8-n) << 3))
 #else
-#define beNtoh(x,n) be64toh(x << ((8-n) << 3))
+#define beNtoh(x,n) be64toh((x) << ((8-(n)) << 3))
 #endif
 
 #define UINT_TO_HOST(x, n) \
 	({ \
 		union plist_uint_ptr __up; \
-		__up.src = (n > 8) ? x + (n - 8) : x; \
-		(n >= 8 ? be64toh( get_unaligned(__up.u64ptr) ) : \
-		(n == 4 ? be32toh( get_unaligned(__up.u32ptr) ) : \
-		(n == 2 ? be16toh( get_unaligned(__up.u16ptr) ) : \
-                (n == 1 ? *__up.u8ptr : \
+		__up.src = ((n) > 8) ? (x) + ((n) - 8) : (x); \
+		((n) >= 8 ? be64toh( get_unaligned(__up.u64ptr) ) : \
+		((n) == 4 ? be32toh( get_unaligned(__up.u32ptr) ) : \
+		((n) == 2 ? be16toh( get_unaligned(__up.u16ptr) ) : \
+                ((n) == 1 ? *__up.u8ptr : \
 		beNtoh( get_unaligned(__up.u64ptr), n) \
 		)))); \
 	})
 
 #define get_needed_bytes(x) \
-		( ((uint64_t)x) < (1ULL << 8) ? 1 : \
-		( ((uint64_t)x) < (1ULL << 16) ? 2 : \
-		( ((uint64_t)x) < (1ULL << 24) ? 3 : \
-		( ((uint64_t)x) < (1ULL << 32) ? 4 : 8))))
+		( ((uint64_t)(x)) < (1ULL << 8) ? 1 : \
+		( ((uint64_t)(x)) < (1ULL << 16) ? 2 : \
+		( ((uint64_t)(x)) < (1ULL << 24) ? 3 : \
+		( ((uint64_t)(x)) < (1ULL << 32) ? 4 : 8))))
 
-#define get_real_bytes(x) (x == (float) x ? sizeof(float) : sizeof(double))
+#define get_real_bytes(x) ((x) == (float) (x) ? sizeof(float) : sizeof(double))
 
 #if (defined(__LITTLE_ENDIAN__) \
      && !defined(__FLOAT_WORD_ORDER__)) \
@@ -182,7 +182,7 @@ union plist_uint_ptr
 #endif
 
 #if __has_builtin(__builtin_umulll_overflow) || __GNUC__ >= 5
-#define uint64_mul_overflow(a, b, r) __builtin_umulll_overflow(a, b, (unsigned long long*)r)
+#define uint64_mul_overflow(a, b, r) __builtin_umulll_overflow(a, b, (unsigned long long*)(r))
 #else
 static int uint64_mul_overflow(uint64_t a, uint64_t b, uint64_t *res)
 {
@@ -191,7 +191,7 @@ static int uint64_mul_overflow(uint64_t a, uint64_t b, uint64_t *res)
 }
 #endif
 
-#define NODE_IS_ROOT(x) (((node_t*)x)->isRoot)
+#define NODE_IS_ROOT(x) (((node_t*)(x))->isRoot)
 
 struct bplist_data {
     const char* data;
@@ -630,6 +630,13 @@ static plist_t parse_bin_node(struct bplist_data *bplist, const char** object)
         }
 
         case BPLIST_NULL:
+        {
+            plist_data_t data = plist_new_plist_data();
+            data->type = PLIST_NULL;
+            data->length = 0;
+            return node_create(NULL, data);
+        }
+
         default:
             return NULL;
         }
@@ -751,8 +758,8 @@ static plist_t parse_bin_node_at_index(struct bplist_data *bplist, uint32_t node
     /* recursion check */
     if (bplist->level > 0) {
         for (i = bplist->level-1; i >= 0; i--) {
-            uint32_t node_i = (uint32_t)(uintptr_t)ptr_array_index(bplist->used_indexes, i);
-            uint32_t node_level = (uint32_t)(uintptr_t)ptr_array_index(bplist->used_indexes, bplist->level);
+            void *node_i = ptr_array_index(bplist->used_indexes, i);
+            void *node_level = ptr_array_index(bplist->used_indexes, bplist->level);
             if (node_i == node_level) {
                 PLIST_BIN_ERR("recursion detected in binary plist\n");
                 return NULL;
@@ -767,7 +774,7 @@ static plist_t parse_bin_node_at_index(struct bplist_data *bplist, uint32_t node
     return plist;
 }
 
-PLIST_API void plist_from_bin(const char *plist_bin, uint32_t length, plist_t * plist)
+PLIST_API plist_err_t plist_from_bin(const char *plist_bin, uint32_t length, plist_t * plist)
 {
     bplist_trailer_t *trailer = NULL;
     uint8_t offset_size = 0;
@@ -779,20 +786,28 @@ PLIST_API void plist_from_bin(const char *plist_bin, uint32_t length, plist_t * 
     const char *start_data = NULL;
     const char *end_data = NULL;
 
+    if (!plist) {
+        return PLIST_ERR_INVALID_ARG;
+    }
+    *plist = NULL;
+    if (!plist_bin || length == 0) {
+        return PLIST_ERR_INVALID_ARG;
+    }
+
     //first check we have enough data
     if (!(length >= BPLIST_MAGIC_SIZE + BPLIST_VERSION_SIZE + sizeof(bplist_trailer_t))) {
         PLIST_BIN_ERR("plist data is to small to hold a binary plist\n");
-        return;
+        return PLIST_ERR_PARSE;
     }
     //check that plist_bin in actually a plist
     if (memcmp(plist_bin, BPLIST_MAGIC, BPLIST_MAGIC_SIZE) != 0) {
         PLIST_BIN_ERR("bplist magic mismatch\n");
-        return;
+        return PLIST_ERR_PARSE;
     }
     //check for known version
     if (memcmp(plist_bin + BPLIST_MAGIC_SIZE, BPLIST_VERSION, BPLIST_VERSION_SIZE) != 0) {
         PLIST_BIN_ERR("unsupported binary plist version '%.2s\n", plist_bin+BPLIST_MAGIC_SIZE);
-        return;
+        return PLIST_ERR_PARSE;
     }
 
     start_data = plist_bin + BPLIST_MAGIC_SIZE + BPLIST_VERSION_SIZE;
@@ -809,37 +824,37 @@ PLIST_API void plist_from_bin(const char *plist_bin, uint32_t length, plist_t * 
 
     if (num_objects == 0) {
         PLIST_BIN_ERR("number of objects must be larger than 0\n");
-        return;
+        return PLIST_ERR_PARSE;
     }
 
     if (offset_size == 0) {
         PLIST_BIN_ERR("offset size in trailer must be larger than 0\n");
-        return;
+        return PLIST_ERR_PARSE;
     }
 
     if (ref_size == 0) {
         PLIST_BIN_ERR("object reference size in trailer must be larger than 0\n");
-        return;
+        return PLIST_ERR_PARSE;
     }
 
     if (root_object >= num_objects) {
         PLIST_BIN_ERR("root object index (%" PRIu64 ") must be smaller than number of objects (%" PRIu64 ")\n", root_object, num_objects);
-        return;
+        return PLIST_ERR_PARSE;
     }
 
     if (offset_table < start_data || offset_table >= end_data) {
         PLIST_BIN_ERR("offset table offset points outside of valid range\n");
-        return;
+        return PLIST_ERR_PARSE;
     }
 
     if (uint64_mul_overflow(num_objects, offset_size, &offset_table_size)) {
         PLIST_BIN_ERR("integer overflow when calculating offset table size\n");
-        return;
+        return PLIST_ERR_PARSE;
     }
 
-    if ((offset_table + offset_table_size < offset_table) || (offset_table + offset_table_size > end_data)) {
+    if (offset_table_size > (uint64_t)(end_data - offset_table)) {
         PLIST_BIN_ERR("offset table points outside of valid range\n");
-        return;
+        return PLIST_ERR_PARSE;
     }
 
     struct bplist_data bplist;
@@ -854,12 +869,18 @@ PLIST_API void plist_from_bin(const char *plist_bin, uint32_t length, plist_t * 
 
     if (!bplist.used_indexes) {
         PLIST_BIN_ERR("failed to create array to hold used node indexes. Out of memory?\n");
-        return;
+        return PLIST_ERR_NO_MEM;
     }
 
     *plist = parse_bin_node_at_index(&bplist, root_object);
 
     ptr_array_free(bplist.used_indexes);
+
+    if (!*plist) {
+        return PLIST_ERR_PARSE;
+    }
+
+    return PLIST_ERR_SUCCESS;
 }
 
 static unsigned int plist_data_hash(const void* key)
@@ -943,7 +964,7 @@ static void serialize_plist(node_t* node, void* data)
     }
 }
 
-#define Log2(x) (x == 8 ? 3 : (x == 4 ? 2 : (x == 2 ? 1 : 0)))
+#define Log2(x) ((x) == 8 ? 3 : ((x) == 4 ? 2 : ((x) == 2 ? 1 : 0)))
 
 static void write_int(bytearray_t * bplist, uint64_t val)
 {
@@ -977,18 +998,24 @@ static void write_real(bytearray_t * bplist, double val)
     buff[7] = BPLIST_REAL | Log2(size);
     if (size == sizeof(float)) {
         float floatval = (float)val;
-        *(uint32_t*)(buff+8) = float_bswap32(*(uint32_t*)&floatval);
+        uint32_t intval;
+        memcpy(&intval, &floatval, sizeof(float));
+        *(uint32_t*)(buff+8) = float_bswap32(intval);
     } else {
-        *(uint64_t*)(buff+8) = float_bswap64(*(uint64_t*)&val);
+        uint64_t intval;
+        memcpy(&intval, &val, sizeof(double));
+        *(uint64_t*)(buff+8) = float_bswap64(intval);
     }
     byte_array_append(bplist, buff+7, size+1);
 }
 
 static void write_date(bytearray_t * bplist, double val)
 {
+    uint64_t intval;
+    memcpy(&intval, &val, sizeof(double));
     uint8_t buff[16];
     buff[7] = BPLIST_DATE | 3;
-    *(uint64_t*)(buff+8) = float_bswap64(*(uint64_t*)&val);
+    *(uint64_t*)(buff+8) = float_bswap64(intval);
     byte_array_append(bplist, buff+7, 9);
 }
 
@@ -1156,7 +1183,7 @@ static int is_ascii_string(char* s, int len)
   return ret;
 }
 
-PLIST_API void plist_to_bin(plist_t plist, char **plist_bin, uint32_t * length)
+PLIST_API plist_err_t plist_to_bin(plist_t plist, char **plist_bin, uint32_t * length)
 {
     ptrarray_t* objects = NULL;
     hashtable_t* ref_table = NULL;
@@ -1174,13 +1201,21 @@ PLIST_API void plist_to_bin(plist_t plist, char **plist_bin, uint32_t * length)
     uint64_t objects_len = 0;
 
     //check for valid input
-    if (!plist || !plist_bin || *plist_bin || !length)
-        return;
+    if (!plist || !plist_bin || !length) {
+        return PLIST_ERR_INVALID_ARG;
+    }
 
     //list of objects
     objects = ptr_array_new(4096);
+    if (!objects) {
+        return PLIST_ERR_NO_MEM;
+    }
     //hashtable to write only once same nodes
     ref_table = hash_table_new(plist_data_hash, plist_data_compare, free);
+    if (!ref_table) {
+        ptr_array_free(objects);
+        return PLIST_ERR_NO_MEM;
+    }
 
     //serialize plist
     ser_s.objects = objects;
@@ -1205,6 +1240,7 @@ PLIST_API void plist_to_bin(plist_t plist, char **plist_bin, uint32_t * length)
         uint8_t bsize;
         switch (data->type)
         {
+        case PLIST_NULL:
         case PLIST_BOOLEAN:
             req += 1;
             break;
@@ -1279,6 +1315,11 @@ PLIST_API void plist_to_bin(plist_t plist, char **plist_bin, uint32_t * length)
 
     //setup a dynamic bytes array to store bplist in
     bplist_buff = byte_array_new(req);
+    if (!bplist_buff) {
+        ptr_array_free(objects);
+        hash_table_destroy(ref_table);
+        return PLIST_ERR_NO_MEM;
+    }
 
     //set magic number and version
     byte_array_append(bplist_buff, BPLIST_MAGIC, BPLIST_MAGIC_SIZE);
@@ -1295,6 +1336,11 @@ PLIST_API void plist_to_bin(plist_t plist, char **plist_bin, uint32_t * length)
 
         switch (data->type)
         {
+        case PLIST_NULL: {
+            uint8_t b = 0;
+            byte_array_append(bplist_buff, &b, 1);
+            break;
+        }
         case PLIST_BOOLEAN: {
             uint8_t b = data->boolval ? BPLIST_TRUE : BPLIST_FALSE;
             byte_array_append(bplist_buff, &b, 1);
@@ -1373,9 +1419,6 @@ PLIST_API void plist_to_bin(plist_t plist, char **plist_bin, uint32_t * length)
 
     bplist_buff->data = NULL; // make sure we don't free the output buffer
     byte_array_free(bplist_buff);
-}
 
-PLIST_API void plist_to_bin_free(char *plist_bin)
-{
-    free(plist_bin);
+    return PLIST_ERR_SUCCESS;
 }
