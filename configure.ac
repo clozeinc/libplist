@@ -2,7 +2,7 @@
 # Process this file with autoconf to produce a configure script.
 
 AC_PREREQ(2.68)
-AC_INIT([libplist], [m4_esyscmd(./git-version-gen $RELEASE_VERSION)], [https://github.com/libimobiledevice/libplist/issues],, [https://libimobiledevice.org])
+AC_INIT([libplist], [m4_esyscmd(./git-version-gen $RELEASE_VERSION)], [https://github.com/libimobiledevice/libplist/issues], [], [https://libimobiledevice.org])
 AM_INIT_AUTOMAKE([dist-bzip2 no-dist-gzip check-news])
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES])
 AC_CONFIG_SRCDIR([src/])
@@ -15,7 +15,7 @@ dnl libtool versioning
 #                 changes to the signature and the semantic)
 #  ? :+1 : ?   == just internal changes
 # CURRENT : REVISION : AGE
-LIBPLIST_SO_VERSION=6:0:3
+LIBPLIST_SO_VERSION=7:0:3
 
 AC_SUBST(LIBPLIST_SO_VERSION)
 
@@ -52,7 +52,7 @@ AC_TYPE_UINT32_T
 AC_TYPE_UINT8_T
 
 # Checks for library functions.
-AC_CHECK_FUNCS([asprintf strcasecmp strdup strerror strndup stpcpy vasprintf gmtime_r localtime_r timegm strptime memmem])
+AC_CHECK_FUNCS([strdup strndup strerror gmtime_r localtime_r timegm strptime memmem])
 
 # Checking endianness
 AC_C_BIGENDIAN([AC_DEFINE([__BIG_ENDIAN__], [1], [big endian])],
@@ -85,6 +85,15 @@ AC_CACHE_CHECK([wether the C compiler supports constructor/destructor attributes
   ac_cv_attribute_constructor=no
   AC_COMPILE_IFELSE([AC_LANG_PROGRAM(
     [[
+      #ifndef __has_attribute
+        #define __has_attribute(x) 0
+      #endif
+      #if !__has_attribute(constructor)
+        #error No constructor attribute
+      #endif
+      #if !__has_attribute(destructor)
+        #error No destructor attribute
+      #endif
       static void __attribute__((constructor)) test_constructor(void) {
       }
       static void __attribute__((destructor)) test_destructor(void) {
@@ -202,6 +211,12 @@ AC_ARG_WITH([fuzzers],
             [build_fuzzers=${withval}],
             [build_fuzzers=no])
 
+AC_ARG_WITH([tests],
+            [AS_HELP_STRING([--without-tests],
+            [Do not build libplist test suite (default is yes)])],
+            [build_tests=${withval}],
+            [build_tests=yes])
+
 if test "x$build_fuzzers" = "xyes"; then
     if test "x$build_sanitizers" = "xno"; then
         AC_MSG_ERROR([--with-fuzzers implies --with-sanitizers, but --without-sanitizers was given. This does not work.])
@@ -288,6 +303,7 @@ if test "x$build_fuzzers" = "xyes"; then
 fi
 
 AM_CONDITIONAL([BUILD_FUZZERS],[test "x$build_fuzzers" = "xyes"])
+AM_CONDITIONAL([BUILD_TESTS],[test "x$build_tests" != "xno"])
 
 if test "x$build_fuzzers" = "xyes" || test "x$build_sanitizers" = "xyes"; then
     AS_COMPILER_FLAGS(TEST_CFLAGS, [$CFLAGS])

@@ -88,6 +88,50 @@ Node* Array::operator[](unsigned int array_index)
     return _array.at(array_index);
 }
 
+Array::iterator Array::Begin()
+{
+    return _array.begin();
+}
+
+Array::iterator Array::begin()
+{
+    return _array.begin();
+}
+
+Array::iterator Array::End()
+{
+    return _array.end();
+}
+
+Array::iterator Array::end()
+{
+    return _array.end();
+}
+
+Array::const_iterator Array::Begin() const
+{
+    return _array.begin();
+}
+
+Array::const_iterator Array::begin() const
+{
+    return _array.begin();
+}
+
+Array::const_iterator Array::End() const
+{
+    return _array.end();
+}
+
+Array::const_iterator Array::end() const
+{
+    return _array.end();
+}
+
+size_t Array::size() const {
+    return _array.size();
+}
+
 void Array::Append(Node* node)
 {
     if (node)
