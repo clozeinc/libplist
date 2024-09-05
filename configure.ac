@@ -15,7 +15,7 @@ dnl libtool versioning
 #                 changes to the signature and the semantic)
 #  ? :+1 : ?   == just internal changes
 # CURRENT : REVISION : AGE
-LIBPLIST_SO_VERSION=7:0:3
+LIBPLIST_SO_VERSION=10:0:6
 
 AC_SUBST(LIBPLIST_SO_VERSION)
 
@@ -129,7 +129,7 @@ AC_CACHE_CHECK(for tm_zone in struct tm, ac_cv_struct_tm_zone,
       #include <time.h>
     ], [
       struct tm tm;
-      tm.tm_zone = 1;
+      tm.tm_zone = (char*)"UTC";
     ])],
     [ac_cv_struct_tm_zone=yes],
     [ac_cv_struct_tm_zone=no]
@@ -147,9 +147,10 @@ AC_ARG_WITH([cython],
             [build_cython=false],
             [build_cython=true])
 if test "$build_cython" = "true"; then
-            AM_PATH_PYTHON(2.3)
-            AC_PROG_CYTHON(0.17.0)
-            CYTHON_PYTHON
+            AC_PROG_CYTHON([3.0.0])
+            if [test "x$CYTHON" != "xfalse"]; then
+              AM_PATH_PYTHON([3.0], [CYTHON_PYTHON])
+            fi
 else
             CYTHON=false
 fi
@@ -173,7 +174,7 @@ else
 fi
 AM_CONDITIONAL([HAVE_CYTHON],[test "x$cython_python_bindings" = "xyes"])
 
-AS_COMPILER_FLAGS(GLOBAL_CFLAGS, "-Wall -Wextra -Wredundant-decls -Wshadow -Wpointer-arith  -Wwrite-strings -Wswitch-default -Wno-unused-parameter -Wno-strict-aliasing -fvisibility=hidden $PTHREAD_CFLAGS")
+AS_COMPILER_FLAGS(GLOBAL_CFLAGS, "-Wall -Wextra -Wredundant-decls -Wshadow -Wpointer-arith  -Wwrite-strings -Wswitch-default -Wno-unused-parameter -Wno-strict-aliasing $PTHREAD_CFLAGS")
 GLOBAL_LDFLAGS="$PTHREAD_LIBS"
 
 AC_ARG_ENABLE(debug,
@@ -191,7 +192,17 @@ if (test "x$debug" = "xyes"); then
        GLOBAL_CFLAGS+=" -g"
 fi
 
+if test "x$enable_static" = "xyes" -a "x$enable_shared" = "xno"; then
+	GLOBAL_CFLAGS+=" -DLIBPLIST_STATIC"
+fi
+
+GLOBAL_CXXFLAGS=$GLOBAL_CFLAGS
+AS_COMPILER_FLAG([-fvisibility=hidden], [
+  GLOBAL_CFLAGS+=" -fvisibility=hidden"
+], [])
+
 AC_SUBST(GLOBAL_CFLAGS)
+AC_SUBST(GLOBAL_CXXFLAGS)
 AC_SUBST(GLOBAL_LDFLAGS)
 
 case "$GLOBAL_CFLAGS" in
